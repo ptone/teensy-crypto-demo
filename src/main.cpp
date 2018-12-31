@@ -2,6 +2,10 @@
 #include <uECC.h>
 #include <Crypto.h>
 #include <ChaChaPoly.h>
+
+#include <RNG.h>
+#include <TransistorNoiseSource.h>
+
 #include <string.h>
 
 #include <cstring>
@@ -24,7 +28,7 @@
 
 extern "C" {
 
-static int RNG(uint8_t *dest, unsigned size) {
+static int TestRNG(uint8_t *dest, unsigned size) {
   // Use the least-significant bits from the ADC for an unconnected pin (or connected to a source of 
   // random noise). This can take a long time to generate random data if the result of analogRead(0) 
   // doesn't change very frequently.
@@ -92,18 +96,24 @@ bool decrypt(const byte key[CHA_CHA_POLY_KEY_SIZE], const byte iv[CHA_CHA_POLY_I
 
 // Forward declarations
 // bool loadMyData(MyData *myData);
-void storeData(const TelemetryData &data);
+size_t storeData(const TelemetryData &data);
+size_t storeMsg(const byte nonce[12], const byte aad[4], const byte cipher[], const int cipherLen, const byte tag[16]);
+
+// this prints the byte with leading zero
+void p(char X) {
+   if (X < 16) {Serial.print("0");}
+   Serial.print(X, HEX);
+}
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  uECC_set_rng(&RNG);
+  uECC_set_rng(&TestRNG);
   Serial.print("Testing ecc\n");
-  // uECC_set_rng(&RNG);
-  // ChaChaPoly chachapoly;
   const struct uECC_Curve_t * curve = uECC_secp256r1();
 
   char privv[] = "00:82:78:13:55:41:53:46:cd:d9:d9:be:4c:58:00:a9:c6:d8:95:f7:4e:62:79:a0:33:ea:ff:23:b3:de:ca:6b:94";
+  char serverPublicStr[] = "04:b1:d2:08:07:70:64:03:c9:3d:5d:56:61:f7:d4:88:ca:20:de:fb:13:c0:74:db:d3:fe:31:b9:10:90:32:b4:4c:2a:89:93:d5:92:4d:dd:98:fc:2a:f4:18:8c:1b:54:de:b0:93:f7:ff:9e:b3:0b:41:2c:cb:db:a0:a7:94:08:3d";
   char* token = NULL; 
   uint8_t devicePrivate[32];
   uint8_t devicePublic[64];
@@ -119,31 +129,27 @@ void setup() {
     ctr++;
   }
 
-  for (int i=0; i < 32; i++) {
-    Serial.print(" ");
-    Serial.print(devicePrivate[i], HEX);
-  }
-  Serial.println();
-
-  Serial.println(sizeof(devicePrivate));
   uECC_compute_public_key(devicePrivate, devicePublic, curve);
 
-  for (int i=0; i < 64; i++) {
-    Serial.print(" ");
-    Serial.print(devicePublic[i], HEX);
-  }
-  Serial.println();
+  // for (int i=0; i < 64; i++) {
+  //   Serial.print(" ");
+  //   Serial.print(devicePublic[i], HEX);
+  // }
+  // Serial.println();
 
   uint8_t serverPrivate[32];
   uint8_t serverPublic[64];
   uint8_t serverSecret[32];
 
   uECC_make_key(serverPublic, serverPrivate, curve);
- for (int i=0; i < 32; i++) {
-    Serial.print(" ");
-    Serial.print(serverPrivate[i], HEX);
-  }
-  Serial.println(); 
+
+  // Serial.println("Server private key"); 
+  // for (int i=0; i < 32; i++) {
+  //   Serial.print(", 0x");
+  //   Serial.print(serverPrivate[i], HEX);
+  // }
+  // Serial.println(); 
+
   int r = uECC_shared_secret(serverPublic, devicePrivate, deviceSecret, curve);
   if (!r) {
     Serial.print("shared_secret() failed (1)\n");
@@ -155,9 +161,11 @@ void setup() {
     Serial.print("shared_secret() failed (2)\n");
     return;
   }
+  Serial.println("shared secrets: "); 
   for (int i=0; i < 32; i++) {
     Serial.print(" ");
-    Serial.print(deviceSecret[i], HEX);
+    // Serial.print(deviceSecret[i], HEX);
+    p(deviceSecret[i]);
   } 
   Serial.println(); 
 
@@ -172,11 +180,22 @@ void setup() {
     Serial.print("Shared secrets are identical\n");
   }
 
-  uint8_t testnonce[12];
-  RNG(testnonce, 12);
+  byte debugkey[CHA_CHA_POLY_KEY_SIZE] = {
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38};
+
+  //debug      
+  // uint8_t msgnonce[12] = {0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01};
+  uint8_t msgnonce[12];
+  TestRNG(msgnonce, 12);
+
+  Serial.println("nonce:");
   for (int i=0; i < 12; i++) {
     Serial.print(" ");
-    Serial.print(testnonce[i], HEX);
+    // Serial.print(msgnonce[i], HEX);
+    p(msgnonce[i]);
   }  
   Serial.println();
 
@@ -187,31 +206,116 @@ void setup() {
     false,
     2.4
   };
-  Serial.println("ok");
-  storeData(testdata);
-  cbor::Reader cb{bs};
-  cbor::Writer cw{bp};
-  // for (int i=0; i < sizeof(bytes); i++) {
-  //   Serial.print(" ");
-  //   Serial.print(bytes[i], HEX);
-  // }  
+  size_t payloadSize = storeData(testdata);
+  Serial.print("returned getWriteSize ");
+  Serial.println(payloadSize);
 
-  bs.reset();
-  if (!cb.isWellFormed()) {
-    Serial.println("Not well-formed CBOR data.");
-  }
+  uint8_t ciphertext[payloadSize];
+  uint8_t tag[16];
+  uint8_t deviceid[4] = {0x01, 0x01, 0x01, 0x01};
+  // encrypt(deviceSecret, msgnonce, aad, plainText, cipherText, tag);
+  chachapoly.clear();
+  chachapoly.setKey(deviceSecret, CHA_CHA_POLY_KEY_SIZE);
+  // chachapoly.setKey(debugkey, CHA_CHA_POLY_KEY_SIZE);
+  chachapoly.setIV(msgnonce, CHA_CHA_POLY_IV_SIZE);
+  chachapoly.addAuthData(deviceid, 4);
+  chachapoly.encrypt(ciphertext, bytes, payloadSize);
+  chachapoly.computeTag(tag, CHA_CHA_POLY_TAG_SIZE);
+  Serial.println("cipher:");
+  for (int i=0; i < payloadSize; i++) {
+    // Serial.print(ciphertext[i], HEX);
+    p(ciphertext[i]);
+    Serial.print(" ");
+  }  
   Serial.println();
-  cbor::DataType dt;
-  bs.reset();
-  size_t bufferUsed = cw.getWriteSize();
-  Serial.println(bufferUsed);
+  Serial.println("tag:");
+  for (int i=0; i < 16; i++) {
+  // Serial.print(tag[i], HEX);
+  p(tag[i]);
+  Serial.print(" ");
+}  
+  Serial.println();
+  Serial.println("original payload");
+
+    for (int i=0; i < 20; i++) {
+    // Serial.print(bytes[i], HEX);
+    p(bytes[i]);
+    Serial.print(" ");
+  }  
+  uint8_t msg[20];
+  chachapoly.clear();
+  chachapoly.setKey(deviceSecret, CHA_CHA_POLY_KEY_SIZE);
+  // chachapoly.setKey(debugkey, CHA_CHA_POLY_KEY_SIZE);
+  chachapoly.setIV(msgnonce, CHA_CHA_POLY_IV_SIZE);
+  chachapoly.addAuthData(deviceid, 4);
+  chachapoly.decrypt(msg, ciphertext, payloadSize);
+  bool result = chachapoly.checkTag(tag, CHA_CHA_POLY_TAG_SIZE);
+  Serial.println();
+  Serial.println("decrypted payload");
+
+    for (int i=0; i < 20; i++) {
+    Serial.print(msg[i], HEX);
+    Serial.print(" ");
+  }  
+  Serial.println();
+  Serial.println("result:");
+  Serial.println(result);
+
+  Serial.println();
+  Serial.println("full msg:");
+  size_t msgSize = storeMsg(msgnonce, deviceid, ciphertext, payloadSize, tag);
+  for (int i=0; i < msgSize; i++) {
+    // Serial.print(bytes[i], HEX);
+    p(bytes[i]);
+    Serial.print(" ");
+  }  
+  Serial.println();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
 }
 
-void storeData(const TelemetryData &data) {
+size_t storeMsg(const byte nonce[12], const byte aad[4], const byte cipher[], const int cipherLen, const byte tag[16]) {
+  cbor::Writer cbor{bp};
+  memset(bytes, 0, sizeof(bytes));
+
+  bp.reset();
+  cbor.beginMap(4);
+
+  // type
+  cbor.beginText(1);
+  cbor.writeByte('t');
+  cbor.writeInt(1);
+
+  // nonce
+  cbor.beginText(1);
+  cbor.writeByte('n');
+  cbor.beginBytes(12);
+  cbor.writeBytes(nonce, 12);
+
+  // aad
+  cbor.beginText(1);
+  cbor.writeByte('a');
+  cbor.beginBytes(4);
+  cbor.writeBytes(aad, 4);
+  
+  // cipher
+  cbor.beginText(1);
+  cbor.writeByte('c');
+  cbor.beginIndefiniteBytes();
+  cbor.beginBytes(cipherLen);
+  cbor.writeBytes(cipher, cipherLen);
+  cbor.beginBytes(16);
+  cbor.writeBytes(tag, 16);
+  cbor.endIndefinite();
+
+
+  return cbor.getWriteSize(); 
+
+};
+
+size_t storeData(const TelemetryData &data) {
   cbor::Writer cbor{bp};
 
   // The following reset() call is only necessary if we don't know
@@ -219,11 +323,21 @@ void storeData(const TelemetryData &data) {
   // to the beginning
   bp.reset();
 
-  cbor.writeTag(cbor::kSelfDescribeTag);
-  cbor.beginArray(2);
+  // cbor.writeTag(cbor::kSelfDescribeTag);
+  // cbor.beginArray(2);
+  // cbor.writeBoolean(data.flag);
+  // cbor.writeFloat(data.temperature);
+  cbor.beginMap(2);
+
+  cbor.beginText(1);
+  cbor.writeByte('s');
   cbor.writeBoolean(data.flag);
+
+  cbor.beginText(1);
+  cbor.writeByte('t');
   cbor.writeFloat(data.temperature);
   size_t bufferUsed = cbor.getWriteSize();
   Serial.print("bytes used: ");
   Serial.println(bufferUsed);
+  return bufferUsed;
 }
