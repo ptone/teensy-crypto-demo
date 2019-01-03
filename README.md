@@ -1,6 +1,6 @@
 # Tiny end-end Crypto #
 
-This repo represents an experiment in small device security that is built on end-end encryption with no assumption of transport security or trusted chain of custody.
+This repo represents an experiment in small device security that is built on end-end encryption with no assumption of transport security or trusted chain of custody of the data.
 
 A challenge in many IoT system designs is that a data message may travel over many legs in its journey. Ensuring end-end security means ensuring a security model at each leg, which may not always be possible for reasons such as:
 
@@ -38,9 +38,13 @@ Inside the server directory, is a sample golang program that:
 
 ![](packet.png)
 
-These messages could be further wrapped into a CoAP or MQTT message.
+These messages could be further wrapped into a CoAP or MQTT message. The overhead for this is:
 
-This project is for illustration only, and would need further review before using in production. The primitives themselves are well understood and tested, but crypto is always full of landmines. You need to ensure you have a good RNG source, you need to make sure private keys are being managed properly, and you need to establish how you register and trust device public keys.
+* 16 bytes for the integrity signature
+* 12 bytes for the nonce
+* the client-id (which is also used as AAD in the AEAD)
+
+This project is for illustration only, and would need further review before using in production. The primitives themselves are well understood and tested, but crypto is always full of landmines. You need to ensure you have a good RNG source (nonce should not be repeated), you need to make sure private keys are being managed properly, and you need to establish how you register and trust device public keys.
 
 Putting this together involves a pretty high HB:LOC (head bangs to lines of final code) ratio, since there is a relative lack of example about putting all these parts together, across platforms and languages.  There are additional snippets that show how to decode and work with these messages in Python and Node that may be added to this repo in the future.
 
