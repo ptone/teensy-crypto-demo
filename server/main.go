@@ -34,12 +34,8 @@ func ecdh(pubBytes []byte, privBytes []byte) (shared []byte, err error) {
 
 	pubX := new(big.Int)
 	pubY := new(big.Int)
-	// TODO verify these are the right order of ranges for X/Y
 	pubX.SetBytes(pubBytes[:32])
 	pubY.SetBytes(pubBytes[32:])
-
-	// pubY.SetBytes(pubBytes[:32])
-	// pubX.SetBytes(pubBytes[32:])
 
 	pub := new(ecdsa.PublicKey)
 	pub.Curve = curve()
@@ -67,7 +63,7 @@ type MessageParser struct {
 
 }
 
-// Create a decrypting message parser
+// NewMessageParser Create a decrypting message parser
 func NewMessageParser(key []byte) (m *MessageParser, err error) {
 	m = &MessageParser{privateKey: key}
 	return m, nil
@@ -92,7 +88,7 @@ func (m *MessageParser) getClientDecrypt(clientID []byte) (secret []byte, err er
 	return sk, nil
 }
 
-// decode a message from client
+// Decode decodes a message from client including nested cbor decoding and decryption of inner message
 func (m *MessageParser) Decode(msg []byte) (data map[string]interface{}, err error) {
 	parsedMsg, err := m.decodeCbor(msg)
 	if err != nil {
@@ -148,6 +144,7 @@ func main() {
 	}
 	decoder, _ := NewMessageParser(key)
 
+	// Change this to the serial port used by your device
 	c := &serial.Config{Name: "/dev/cu.usbmodem22398701", Baud: 9600}
 	s, err := serial.OpenPort(c)
 	if err != nil {
@@ -166,7 +163,7 @@ func main() {
 		fmt.Println(m)
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		fmt.Fprintln(os.Stderr, "reading input:", err)
 	}
 
 }
