@@ -14,7 +14,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"strings"
 
 	"github.com/tarm/serial"
 	"github.com/ugorji/go/codec"
@@ -64,10 +63,11 @@ type MessageParser struct {
 	chacha     cipher.AEAD //actually may not be able to easily reuse
 	// TODO
 	// client-keys  cacheMap of client id to shared key (should this actually be the map of chachas? more memory overhead)
-	//firestore client (mock for now?)
+	//db client key lookup (mock for now?)
 
 }
 
+// Create a decrypting message parser
 func NewMessageParser(key []byte) (m *MessageParser, err error) {
 	m = &MessageParser{privateKey: key}
 	return m, nil
@@ -85,14 +85,14 @@ func (m *MessageParser) decodeCbor(msg []byte) (data map[string]interface{}, err
 
 func (m *MessageParser) getClientDecrypt(clientID []byte) (secret []byte, err error) {
 	// get publickey
-	clientPubStr := "96:7e:b9:87:3e:f1:7e:95:4c:3d:9c:ed:62:e3:6c:d2:28:1f:c1:56:e6:1a:62:6d:72:2d:0d:db:25:48:cf:1c:87:66:5e:de:3e:00:14:97:be:7a:c5:61:4b:e5:54:d7:e3:a1:d7:88:da:6b:51:6e:94:01:01:79:f9:d3:a3:94"
-
-	clientPubStr = strings.Replace(clientPubStr, ":", "", -1)
+	// This would normally be looked up from a database based on the clientID sent
+	clientPubStr := "967EB9873EF17E954C3D9CED62E36CD2281FC156E61A626D722D0DDB2548CF1C87665EDE3E001497BE7AC5614BE554D7E3A1D788DA6B516E94010179F9D3A394"
 	pubKeyBytes, err := hex.DecodeString(clientPubStr)
 	sk, err := ecdh(pubKeyBytes, m.privateKey)
 	return sk, nil
 }
 
+// decode a message from client
 func (m *MessageParser) Decode(msg []byte) (data map[string]interface{}, err error) {
 	parsedMsg, err := m.decodeCbor(msg)
 	if err != nil {
@@ -135,12 +135,6 @@ func parseECPrivateKeyFromPEM(key []byte) ([]byte, error) {
 }
 
 func main() {
-	// hexmsg := "A4 61 74 01 61 6E 4C 73 D7 B8 A0 D7 00 4B 16 79 72 CF E7 61 61 44 01 01 01 01 61 63 5F 4B 61 98 AC 1F F5 B6 CD CF 88 28 5A 50 EF 75 14 04 55 A6 84 D9 A8 4C AB 97 50 A5 7B E0 FF"
-	// hexmsg = strings.Replace(hexmsg, " ", "", -1)
-	// cborbytes, err := hex.DecodeString(hexmsg)
-	// if err != nil {
-	// 	log.Fatal("decode failed")
-	// }
 
 	privateKey := "../keys/server/ec_private.pem"
 	keyBytes, err := ioutil.ReadFile(privateKey)
