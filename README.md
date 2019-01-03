@@ -37,6 +37,7 @@ Inside the server directory, is a sample golang program that:
 
 
 ![](packet.png)
+
 These messages could be further wrapped into a CoAP or MQTT message.
 
 This project is for illustration only, and would need further review before using in production. The primitives themselves are well understood and tested, but crypto is always full of landmines. You need to ensure you have a good RNG source, you need to make sure private keys are being managed properly, and you need to establish how you register and trust device public keys.
