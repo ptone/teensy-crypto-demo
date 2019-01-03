@@ -1,4 +1,4 @@
-#Tiny end-end Crypto
+# Tiny end-end Crypto #
 
 This repo represents an experiment in small device security that is built on end-end encryption with no assumption of transport security or trusted chain of custody.
 
