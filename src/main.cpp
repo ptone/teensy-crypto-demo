@@ -166,7 +166,6 @@ void loop() {
     Serial.println("nonce:");
     for (int i=0; i < 12; i++) {
       Serial.print(" ");
-      // Serial.print(msgnonce[i], HEX);
       p(msgnonce[i]);
     }  
     Serial.println();
@@ -198,14 +197,12 @@ void loop() {
   if (debug) {
     Serial.println("cipher:");
     for (int i=0; i < payloadSize; i++) {
-      // Serial.print(ciphertext[i], HEX);
       p(ciphertext[i]);
       Serial.print(" ");
     }  
     Serial.println();
     Serial.println("tag:");
     for (int i=0; i < 16; i++) {
-    // Serial.print(tag[i], HEX);
     p(tag[i]);
     Serial.print(" ");
   }  
@@ -213,14 +210,12 @@ void loop() {
     Serial.println("original payload");
 
       for (int i=0; i < 20; i++) {
-      // Serial.print(bytes[i], HEX);
       p(bytes[i]);
       Serial.print(" ");
     }  
     uint8_t msg[20];
     chachapoly.clear();
     chachapoly.setKey(deviceSecret, CHA_CHA_POLY_KEY_SIZE);
-    // chachapoly.setKey(debugkey, CHA_CHA_POLY_KEY_SIZE);
     chachapoly.setIV(msgnonce, CHA_CHA_POLY_IV_SIZE);
     chachapoly.addAuthData(deviceid, 4);
     chachapoly.decrypt(msg, ciphertext, payloadSize);
@@ -298,10 +293,6 @@ size_t storeData(const TelemetryData &data) {
   // to the beginning
   bp.reset();
 
-  // cbor.writeTag(cbor::kSelfDescribeTag);
-  // cbor.beginArray(2);
-  // cbor.writeBoolean(data.flag);
-  // cbor.writeFloat(data.temperature);
   cbor.beginMap(2);
 
   cbor.beginText(1);
@@ -312,7 +303,5 @@ size_t storeData(const TelemetryData &data) {
   cbor.writeByte('t');
   cbor.writeFloat(data.temperature);
   size_t bufferUsed = cbor.getWriteSize();
-  // Serial.print("bytes used: ");
-  // Serial.println(bufferUsed);
   return bufferUsed;
 }
