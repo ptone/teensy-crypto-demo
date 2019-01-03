@@ -112,12 +112,18 @@ void setup() {
   Serial.print("Testing ecc\n");
   const struct uECC_Curve_t * curve = uECC_secp256r1();
 
-  char privv[] = "00:82:78:13:55:41:53:46:cd:d9:d9:be:4c:58:00:a9:c6:d8:95:f7:4e:62:79:a0:33:ea:ff:23:b3:de:ca:6b:94";
-  char serverPublicStr[] = "04:b1:d2:08:07:70:64:03:c9:3d:5d:56:61:f7:d4:88:ca:20:de:fb:13:c0:74:db:d3:fe:31:b9:10:90:32:b4:4c:2a:89:93:d5:92:4d:dd:98:fc:2a:f4:18:8c:1b:54:de:b0:93:f7:ff:9e:b3:0b:41:2c:cb:db:a0:a7:94:08:3d";
+  char privv[] = "c9:3b:25:f0:de:87:61:54:74:fc:ab:7b:04:74:71:b7:2d:23:15:32:22:cb:21:78:16:2e:3d:f0:b1:cb:02:0d";
+  // reversed
+  // char privv[] = "0D:02:CB:B1:F0:3D:2E:16:78:21:CB:22:32:15:23:2D:B7:71:74:04:7B:AB:FC:74:54:61:87:DE:F0:25:3B:C9";
+
+  char serverPublicStr[] = "b1:d2:08:07:70:64:03:c9:3d:5d:56:61:f7:d4:88:ca:20:de:fb:13:c0:74:db:d3:fe:31:b9:10:90:32:b4:4c:2a:89:93:d5:92:4d:dd:98:fc:2a:f4:18:8c:1b:54:de:b0:93:f7:ff:9e:b3:0b:41:2c:cb:db:a0:a7:94:08:3d";
+  // reversed
+  // char serverPublicStr[] = "3D:08:94:A7:A0:DB:CB:2C:41:0B:B3:9E:FF:F7:93:B0:DE:54:1B:8C:18:F4:2A:FC:98:DD:4D:92:D5:93:89:2A:4C:B4:32:90:10:B9:31:FE:D3:DB:74:C0:13:FB:DE:20:CA:88:D4:F7:61:56:5D:3D:C9:03:64:70:07:08:D2:B1";
   char* token = NULL; 
   uint8_t devicePrivate[32];
   uint8_t devicePublic[64];
   uint8_t deviceSecret[32];
+  uint8_t serverPublic[64];
  
   // parse private string into byte array
   token = strtok(privv, ":");
@@ -129,26 +135,20 @@ void setup() {
     ctr++;
   }
 
+  token = strtok(serverPublicStr, ":");
+  ctr = 0;
+  while (token != NULL) {
+    // Serial.printf("%s\n", token); 
+    serverPublic[ctr] = strtoul(token, NULL, 16);
+    token = strtok(NULL, ":");
+    ctr++;
+  }
+
+
   uECC_compute_public_key(devicePrivate, devicePublic, curve);
-
-  // for (int i=0; i < 64; i++) {
-  //   Serial.print(" ");
-  //   Serial.print(devicePublic[i], HEX);
-  // }
-  // Serial.println();
-
-  uint8_t serverPrivate[32];
-  uint8_t serverPublic[64];
-  uint8_t serverSecret[32];
-
-  uECC_make_key(serverPublic, serverPrivate, curve);
-
-  // Serial.println("Server private key"); 
-  // for (int i=0; i < 32; i++) {
-  //   Serial.print(", 0x");
-  //   Serial.print(serverPrivate[i], HEX);
-  // }
-  // Serial.println(); 
+  // uint8_t serverPrivate[32];
+  // uint8_t serverSecret[32];
+  // uECC_make_key(serverPublic, serverPrivate, curve);
 
   int r = uECC_shared_secret(serverPublic, devicePrivate, deviceSecret, curve);
   if (!r) {
@@ -156,38 +156,65 @@ void setup() {
     return;
   }
 
-  r = uECC_shared_secret(devicePublic, serverPrivate, serverSecret, curve);
-  if (!r) {
-    Serial.print("shared_secret() failed (2)\n");
-    return;
-  }
+  // r = uECC_shared_secret(devicePublic, serverPrivate, serverSecret, curve);
+  // if (!r) {
+  //   Serial.print("shared_secret() failed (2)\n");
+  //   return;
+  // }
   Serial.println("shared secrets: "); 
   for (int i=0; i < 32; i++) {
-    Serial.print(" ");
+    // Serial.print(" ");
     // Serial.print(deviceSecret[i], HEX);
     p(deviceSecret[i]);
   } 
   Serial.println(); 
 
+  Serial.println("Device Private"); 
   for (int i=0; i < 32; i++) {
-    Serial.print(" ");
-    Serial.print(serverSecret[i], HEX);
+  //   Serial.print(" ");
+    // Serial.print(devicePrivate[i], HEX);
+    p(devicePrivate[i]);
   } 
   Serial.println(); 
-  if (memcmp(deviceSecret, serverSecret, 32) != 0) {
-    Serial.print("Shared secrets are not identical!\n");
-  } else {
-    Serial.print("Shared secrets are identical\n");
-  }
+  Serial.println(); 
 
-  byte debugkey[CHA_CHA_POLY_KEY_SIZE] = {
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-        0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-        0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
-        0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38};
+  Serial.println("Device Public Computed"); 
+  for (int i=0; i < 64; i++) {
+  //   Serial.print(" ");
+    // Serial.print(devicePrivate[i], HEX);
+    p(devicePublic[i]);
+  } 
+  Serial.println(); 
+  Serial.println(); 
+
+  Serial.println("server public"); 
+  for (int i=0; i < 64; i++) {
+  //   Serial.print(" ");
+    // Serial.print(serverPublic[i], HEX);
+    p(serverPublic[i]);
+  } 
+  int pubok = uECC_valid_public_key(serverPublic, curve);
+  Serial.println(); 
+  Serial.println("valid public"); 
+  Serial.println(pubok); 
+  Serial.println(); 
+  Serial.println(); 
+
+  // if (memcmp(deviceSecret, serverSecret, 32) != 0) {
+  //   Serial.print("Shared secrets are not identical!\n");
+  // } else {
+  //   Serial.print("Shared secrets are identical\n");
+  // }
+
+  // byte debugkey[CHA_CHA_POLY_KEY_SIZE] = {
+  //       0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+  //       0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+  //       0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+  //       0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38};
 
   //debug      
   // uint8_t msgnonce[12] = {0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01};
+
   uint8_t msgnonce[12];
   TestRNG(msgnonce, 12);
 
@@ -206,6 +233,7 @@ void setup() {
     false,
     2.4
   };
+
   size_t payloadSize = storeData(testdata);
   Serial.print("returned getWriteSize ");
   Serial.println(payloadSize);
@@ -274,6 +302,13 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  for (int i=0; i < 100; i++) {
+    // Serial.print(bytes[i], HEX);
+    p(bytes[i]);
+    Serial.print(" ");
+  }  
+  Serial.println();
+  delay(10000);
 }
 
 size_t storeMsg(const byte nonce[12], const byte aad[4], const byte cipher[], const int cipherLen, const byte tag[16]) {
