@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -12,8 +13,10 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
+	"os"
 	"strings"
 
+	"github.com/tarm/serial"
 	"github.com/ugorji/go/codec"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -132,14 +135,14 @@ func parseECPrivateKeyFromPEM(key []byte) ([]byte, error) {
 }
 
 func main() {
-	hexmsg := "A4 61 74 01 61 6E 4C 73 D7 B8 A0 D7 00 4B 16 79 72 CF E7 61 61 44 01 01 01 01 61 63 5F 4B 61 98 AC 1F F5 B6 CD CF 88 28 5A 50 EF 75 14 04 55 A6 84 D9 A8 4C AB 97 50 A5 7B E0 FF"
-	hexmsg = strings.Replace(hexmsg, " ", "", -1)
-	cborbytes, err := hex.DecodeString(hexmsg)
-	if err != nil {
-		log.Fatal("decode failed")
-	}
+	// hexmsg := "A4 61 74 01 61 6E 4C 73 D7 B8 A0 D7 00 4B 16 79 72 CF E7 61 61 44 01 01 01 01 61 63 5F 4B 61 98 AC 1F F5 B6 CD CF 88 28 5A 50 EF 75 14 04 55 A6 84 D9 A8 4C AB 97 50 A5 7B E0 FF"
+	// hexmsg = strings.Replace(hexmsg, " ", "", -1)
+	// cborbytes, err := hex.DecodeString(hexmsg)
+	// if err != nil {
+	// 	log.Fatal("decode failed")
+	// }
 
-	privateKey := "/Users/ptone/dev/tiny-crypto/keys/server/ec_private.pem"
+	privateKey := "../keys/server/ec_private.pem"
 	keyBytes, err := ioutil.ReadFile(privateKey)
 	if err != nil {
 		log.Fatal(err)
@@ -151,9 +154,25 @@ func main() {
 	}
 	decoder, _ := NewMessageParser(key)
 
-	m, err := decoder.Decode(cborbytes)
+	c := &serial.Config{Name: "/dev/cu.usbmodem22398701", Baud: 9600}
+	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(m)
+
+	r := bufio.NewReader(s)
+	scanner := bufio.NewScanner(r)
+	// TODO use SLIPMUX for packets instead of hex lines https://github.com/lobaro/slip
+	for scanner.Scan() {
+		cborbytes, err := hex.DecodeString(scanner.Text())
+		m, err := decoder.Decode(cborbytes)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(m)
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+	}
+
 }
